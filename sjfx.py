@@ -1,42 +1,28 @@
-# -*- coding:utf-8 -*-
 import pandas as pd
-import statsmodels.api as sm
+import statsmodels.formula.api as smf
 from statsmodels.stats.outliers_influence import variance_inflation_factor
+import statsmodels.api as sm
+df = pd.read_csv("D:\ records\QQ Downloads\python\Carseats.csv")
 
-# 构造CarSeat数据集（离线版本，不需要联网下载）
-data = {
-    "Sales": [7.5,12.5,10.5,9.5,11.2,12.8,11.5,13.1,8.7,10.9]*10,
-    "Price": [120,110,125,130,115,105,118,102,135,122]*10,
-    "Income": [45,62,58,70,52,68,55,75,42,60]*10,
-    "Advertising": [12,15,10,8,14,18,11,20,7,13]*10,
-    "ShelveLoc": ["Bad","Good","Medium","Bad","Good","Medium","Bad","Good","Medium","Bad"]*10
-}
-df = pd.DataFrame(data)
 
-print("数据集前5行：")
-print(df.head())
+formula = "Sales ~ Price + Income + Advertising + ShelveLoc"
+model = smf.ols(formula=formula, data=df).fit()
 
-# 选取变量：响应变量Sales；自变量Price, Income, Advertising, ShelveLoc
-X_raw = df[["Price", "Income", "Advertising", "ShelveLoc"]]
-y = df["Sales"]
 
-# 生成虚拟变量，ShelveLoc是分类变量
-X_dummy = pd.get_dummies(X_raw, columns=["ShelveLoc"], drop_first=True)
-
-# 添加常数项(截距β0)，statsmodels OLS需要手动加
-X = sm.add_constant(X_dummy)
-
-# 构建多元线性回归模型，拟合
-model = sm.OLS(y, X).fit()
-
-# 输出回归结果
-print("\n=====回归结果摘要=====")
 print(model.summary())
 
-# ========== 计算VIF（方差膨胀因子，检验多重共线性）==========
-vif_data = pd.DataFrame()
-vif_data["变量名"] = X.columns
-vif_data["VIF"] = [variance_inflation_factor(X.values, i) for i in range(X.shape[1])]
+print("\nShelveLoc的基准组：Bad")
+# statsmodels formula会自动把字母排序第一个类别Bad作为参照基准组，生成ShelveLoc[T.Good], ShelveLoc[T.Medium]
 
-print("\n=====方差膨胀因子VIF=====")
-print(vif_data)
+print("\nShelveLoc[Good]系数含义：")
+print(f"ShelveLoc[T.Good]系数 = {model.params['ShelveLoc[T.Good]']:.4f}")
+print("在Price、Income、Advertising保持不变的前提下，货架位置为Good的商品，对比基准组Bad，销售额Sales平均增加该系数大小。")
+
+# ==========3. 计算VIF，多重共线性诊断==========
+# 构造模型设计矩阵（去掉截距项计算VIF）
+X = model.model.exog
+vif_df = pd.DataFrame()
+vif_df["变量名"] = model.model.exog_names
+vif_df["VIF"] = [variance_inflation_factor(X,i) for i in range(X.shape[1])]
+print("\n各变量VIF结果：")
+print(vif_df)
